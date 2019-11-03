@@ -50,7 +50,7 @@ Advantages over netcat
 
 Netcat is a standard tool that works very well for testing TCP and UDP connections.
 
-SocketSrv is a more specialized tool and features some ease of use in the case of testing low-level client developments::
+SocketSrv is a more specialized tool and features some ease of use in the case of testing low-level client developments:
 
  - Allows multiple connections per instance,
  - provides support for WebSockets (TODO),
