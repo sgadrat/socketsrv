@@ -14,6 +14,7 @@
 #  * Websockets #TODO
 #
 
+import readline # Keep it even if it seems unused, it improves input()
 import select
 import socket
 import sys
@@ -81,9 +82,10 @@ class TcpServer:
 			rcv, snd, error = select.select(sockets_list, [], sockets_list)
 
 			for socket in error:
-				# TODO better message (with cause and client number
-				# TODO remove connection from clients list
-				print('< TCP connection cut')
+				client_num = self.client_num_from_socket(socket)
+				assert client_num is not None
+				print('< TCP connection #{} cut'.format(client_num))
+				self.clients[client_num] = None
 
 			for socket in rcv:
 				if socket is self.accepting_sock:
@@ -137,13 +139,24 @@ class SocketSrv:
 		"""
 		Print commands list
 		"""
-		#TODO
-		print('Read the fucking source')
+		print('Server listening on multiple protocol, printing messages as they come')
+		print('and allowing to interract with clients with interactive commands.')
+		print('')
+
+		print('Handled protocols:')
+		for protocol in self.servers:
+			print('\t{}'.format(protocol))
+		print('')
+
+		print('Commands list:')
+		for attr in dir(self):
+			if attr[:4] == 'cmd_':
+				print('\t{}'.format(attr[4:]))
 
 	def cmd_send(self, args):
-		if len(args) == 0 or args[0] == 'help':
+		if len(args) < 2 or args[0] == 'help':
 			print('send <protocol> <client-num> <message>')
-			print('\t<protocol> shall be "udp"')
+			print('\t<protocol> one of the handled protocols')
 			print('\t<client-num> index of the client in protocol\'s clients list')
 			print('\t<message> anything to send to the client (may contain spaces)')
 		elif args[0] in self.servers:
@@ -153,11 +166,13 @@ class SocketSrv:
 				self.servers[args[0]].send(message, client_num)
 			except Exception as e:
 				print('X {}'.format(e))
+		else:
+			print('X unknown protocol {}'.format(args[0]))
 
 	def cmd_list_clients(self, args):
 		if len(args) > 0 and args[0] == 'help':
 			print('list_clients')
-			print('\tLists sessions')
+			print('\tLists clients for each protocol')
 		else:
 			for protocol in self.servers:
 				server = self.servers[protocol]
@@ -168,15 +183,6 @@ class SocketSrv:
 				else:
 					print('\tNo client')
 
-	def cmd_dbg(self, args):
-		"""
-		Developper's command, printing esotheric results that only gurus can understand
-		"""
-		for protocol in self.servers:
-			server = self.servers[protocol]
-			for client_num in range(len(server.clients)):
-				print('{}#{}: {}'.format(protocol, client_num, server.clients[client_num]))
-
 	def run(self):
 		server_threads = []
 		for protocol in self.servers:
@@ -186,13 +192,16 @@ class SocketSrv:
 			server_threads.append(server_thread)
 
 		while True:
-			line = sys.stdin.readline()
+			line = input()
 			if line == '':
-				break
-			cmd = line[:-1].split(' ')
+				continue
+			cmd = line.split(' ')
 
 			if hasattr(self, 'cmd_{}'.format(cmd[0])):
-				getattr(self, 'cmd_{}'.format(cmd[0]))(cmd[1:])
+				try:
+					getattr(self, 'cmd_{}'.format(cmd[0]))(cmd[1:])
+				except Exception as e:
+					print('X {}'.format(e))
 			else:
 				print('unknown command {}'.format(cmd[0]))
 				self.cmd_help([])
@@ -205,4 +214,10 @@ if __name__ == "__main__":
 		'udp': {'addr':'0.0.0.0', 'port':1234},
 		'tcp': {'addr':'0.0.0.0', 'port':1234}
 	})
-	srv.run()
+
+	try:
+		srv.run()
+	except (EOFError, KeyboardInterrupt):
+		# EOFError: stdin was closed
+		# KeyboardInterrupt: ctrl+c
+		pass
