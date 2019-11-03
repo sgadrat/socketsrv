@@ -11,7 +11,7 @@
 # Supported protocols:
 #  * UDP (the same way "netcat -lu" works for simulating connections)
 #  * TCP
-#  * Websockets #TODO
+#  * Websockets
 #
 
 import argparse
@@ -20,6 +20,14 @@ import select
 import socket
 import sys
 import threading
+
+websockets_available = False
+try:
+	import asyncio
+	import websockets
+	websockets_available = True
+except ModuleNotFoundError:
+	pass
 
 class UdpServer:
 	"""
@@ -126,6 +134,56 @@ class TcpServer:
 			return 'closed connection'
 		return '{}:{}'.format(client_info[1][0], client_info[1][1])
 
+class WsServer:
+	"""
+	Server handling WebSocket protocol
+	"""
+	def __init__(self, listen_addr):
+		"""
+		param listen_addr Tuple (str addr, int port)
+		"""
+		self.clients = []
+		self.listen_addr = listen_addr
+
+	def run(self):
+		# Ensure there is an event loop for the current thread then create and start the websocket server
+		asyncio.set_event_loop(asyncio.new_event_loop())
+		server_task = websockets.serve(self.handle_connection, self.listen_addr[0], self.listen_addr[1])
+		asyncio.get_event_loop().run_until_complete(server_task)
+		asyncio.get_event_loop().run_forever()
+
+	async def handle_connection(self, socket, path):
+		# Register client
+		client_num = len(self.clients)
+		self.clients.append((socket, path))
+		assert len(self.clients) == client_num + 1, "race condition on websocket client connection, should be fixed by a lock"
+		print('< new WebSocket connection #{}: {}'.format(client_num, self.get_client_desc(client_num)))
+
+		# Handle messages
+		while True:
+			data = await socket.recv()
+			print('< Received message on WebSocket connection #{}: {}'.format(client_num, data))
+
+		# Unregister client
+		self.clients[client_num] = None
+
+	def send(self, message, client_num):
+		if client_num < len(self.clients):
+			client_info = self.clients[client_num]
+			if client_info is None:
+				raise Exception('try to write on closed WebSocket connection #{}'.format(client_num))
+			client_socket = client_info[0]
+			asyncio.run(client_socket.send(message.decode('utf-8')))
+			print('> sent message to WebSocket connection #{}: {}'.format(client_num, message))
+		else:
+			raise Exception('try to write on unknown WebSocket connection #{}'.format(client_num))
+
+	def get_client_desc(self, client_num):
+		client_info = self.clients[client_num]
+		remote_addr = client_info[0].remote_address
+		path = client_info[1]
+		return '{}:{}:{}'.format(remote_addr[0], remote_addr[1], path)
+
 class SocketSrv:
 	"""
 	Multi-protocol server
@@ -135,6 +193,8 @@ class SocketSrv:
 			'udp': UdpServer((config['udp']['addr'], config['udp']['port'])),
 			'tcp': TcpServer((config['tcp']['addr'], config['tcp']['port'])),
 		}
+		if websockets_available:
+			self.servers['ws'] = WsServer((config['ws']['addr'], config['ws']['port']))
 
 	def cmd_help(self, args):
 		"""
@@ -216,11 +276,15 @@ if __name__ == "__main__":
 	parser.add_argument('--udp-port', default=1234, type=int, help='Listening port for UDP (default 1234)')
 	parser.add_argument('--tcp-addr', default='0.0.0.0', help='Listening address for TCP (default "0.0.0.0")')
 	parser.add_argument('--tcp-port', default=1234, type=int, help='Listening port for TCP (default 1234)')
+	if websockets_available:
+		parser.add_argument('--ws-addr', default='0.0.0.0', help='Listening address for WebSocket (default "0.0.0.0")')
+		parser.add_argument('--ws-port', default=1235, type=int, help='Listening port for WebSocket (default 1235)')
 	args = parser.parse_args()
 
 	srv = SocketSrv({
 		'udp': {'addr':args.udp_addr, 'port':args.udp_port},
-		'tcp': {'addr':args.tcp_addr, 'port':args.tcp_port}
+		'tcp': {'addr':args.tcp_addr, 'port':args.tcp_port},
+		'ws': {'addr':args.ws_addr, 'port':args.ws_port} if websockets_available else None
 	})
 
 	try:

@@ -43,7 +43,7 @@ Protocols list
 
  - TCP
  - UDP
- - WebSocket (TODO)
+ - WebSocket
 
 Advantages over netcat
 ----------------------
@@ -53,9 +53,38 @@ Netcat is a standard tool that works very well for testing TCP and UDP connectio
 SocketSrv is a more specialized tool and features some ease of use in the case of testing low-level client developments:
 
  - Allows multiple connections per instance,
- - provides support for WebSockets (TODO),
+ - provides support for WebSockets,
  - shows more complete information about connections/disconnections of clients,
  - has an extensible interractive commands system,
  - I coded it myself, so it is better!
 
 Note that I highly recommend going with netcat over this server as it is standard, battle-tested and simpler.
+
+WebSockets support
+==================
+
+Support of WebSockets protocol depends on the availability of the ``websockets`` python module.
+
+To check if there is WebSocket support, you can check SpcketSrv's help message::
+
+	$ python socketsrv.py --help
+	usage: socketsrv.py [-h] [--udp-addr UDP_ADDR] [--udp-port UDP_PORT]
+						[--tcp-addr TCP_ADDR] [--tcp-port TCP_PORT]
+						[--ws-addr WS_ADDR] [--ws-port WS_PORT]
+
+	Dump messages from various protocols
+
+	optional arguments:
+	  -h, --help           show this help message and exit
+	  --udp-addr UDP_ADDR  Listening address for UDP (default "0.0.0.0")
+	  --udp-port UDP_PORT  Listening port for UDP (default 1234)
+	  --tcp-addr TCP_ADDR  Listening address for TCP (default "0.0.0.0")
+	  --tcp-port TCP_PORT  Listening port for TCP (default 1234)
+	  --ws-addr WS_ADDR    Listening address for WebSocket (default "0.0.0.0")
+	  --ws-port WS_PORT    Listening port for WebSocket (default 1235)
+
+If the WebSocket related options (``--ws-addr`` and ``--ws-port``) are listed, there is WebSocket support.
+
+If you need to install ``websockets`` module, you can do so with::
+
+	pip install websockets
