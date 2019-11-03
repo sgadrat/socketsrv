@@ -9,8 +9,8 @@
 # to connected clients.
 #
 # Supported protocols:
-#  * UDP (the same way "netcat -lu" works for simulating connections) #WIP
-#  * TCP #WIP
+#  * UDP (the same way "netcat -lu" works for simulating connections)
+#  * TCP
 #  * Websockets #TODO
 #
 
@@ -38,6 +38,16 @@ class UdpServer:
 			if addr not in self.clients:
 				self.clients.append(addr)
 			print(data)
+
+	def send(self, message, client_num):
+		if client_num < len(self.clients):
+			self.sock.sendto(message, self.clients[client_num])
+			print('> sent datagram to UDP session #{}: {}'.format(client_num, message))
+		else:
+			raise Exception('unknown client #{}'.format(client_num))
+
+	def get_client_desc(self, client_num):
+		return '{}:{}'.format(self.clients[client_num][0], self.clients[client_num][1])
 
 class TcpServer:
 	"""
@@ -75,8 +85,9 @@ class TcpServer:
 			for socket in rcv:
 				if socket is self.accepting_sock:
 					client_info = socket.accept()
+					client_num = len(self.clients)
 					self.clients.append(client_info)
-					print('< new TCP connection #{}: {}'.format(len(self.clients) - 1, client_info))
+					print('< new TCP connection #{}: {}'.format(client_num, self.get_client_desc(client_num)))
 				else:
 					client_num = self.client_num_from_socket(socket)
 					assert client_num is not None
@@ -92,13 +103,32 @@ class TcpServer:
 					else:
 						print('< received payload on TCP connection #{}: {}'.format(client_num, data))
 
+	def send(self, message, client_num):
+		if client_num < len(self.clients):
+			client_info = self.clients[client_num]
+			if client_info is None:
+				raise Exception('try to write on closed TCP connection #{}'.format(client_num))
+			client_socket = client_info[0]
+			client_socket.send(message)
+			print('> sent payload to TCP connection #{}: {}'.format(client_num, message))
+		else:
+			raise Exception('try to write on unknown TCP connection #{}'.format(client_num))
+
+	def get_client_desc(self, client_num):
+		client_info = self.clients[client_num]
+		if client_info is None:
+			return 'closed connection'
+		return '{}:{}'.format(client_info[1][0], client_info[1][1])
+
 class SocketSrv:
 	"""
 	Multi-protocol server
 	"""
 	def __init__(self, config):
-		self.udp_server = UdpServer((config['udp']['addr'], config['udp']['port']))
-		self.tcp_server = TcpServer((config['tcp']['addr'], config['tcp']['port']))
+		self.servers = {
+			'udp': UdpServer((config['udp']['addr'], config['udp']['port'])),
+			'tcp': TcpServer((config['tcp']['addr'], config['tcp']['port'])),
+		}
 
 	def cmd_help(self, args):
 		"""
@@ -113,25 +143,44 @@ class SocketSrv:
 			print('\t<protocol> shall be "udp"')
 			print('\t<client-num> index of the client in protocol\'s clients list')
 			print('\t<message> anything to send to the client (may contain spaces)')
-		elif args[0] == 'udp':
+		elif args[0] in self.servers:
 			client_num = int(args[1])
 			message = (' '.join(args[2:]) + '\n').encode('utf-8')
-			self.udp_server.sock.sendto(message, self.udp_server.clients[client_num])
-			print('> sent datagram to UDP session #{}: {}'.format(client_num, message))
+			try:
+				self.servers[args[0]].send(message, client_num)
+			except Exception as e:
+				print('X {}'.format(e))
+
+	def cmd_list_clients(self, args):
+		if len(args) > 0 and args[0] == 'help':
+			print('list_clients')
+			print('\tLists sessions')
+		else:
+			for protocol in self.servers:
+				server = self.servers[protocol]
+				print('{}:'.format(protocol))
+				if len(server.clients) > 0:
+					for client_num in range(len(server.clients)):
+						print('\t#{}: {}'.format(client_num, server.get_client_desc(client_num)))
+				else:
+					print('\tNo client')
 
 	def cmd_dbg(self, args):
 		"""
 		Developper's command, printing esotheric results that only gurus can understand
 		"""
-		print(str(self.udp_server.clients))
+		for protocol in self.servers:
+			server = self.servers[protocol]
+			for client_num in range(len(server.clients)):
+				print('{}#{}: {}'.format(protocol, client_num, server.clients[client_num]))
 
 	def run(self):
-		udp_server_thread = threading.Thread(target=self.udp_server.run)
-		udp_server_thread.daemon = True
-		udp_server_thread.start()
-		tcp_server_thread = threading.Thread(target=self.tcp_server.run)
-		tcp_server_thread.daemon = True
-		tcp_server_thread.start()
+		server_threads = []
+		for protocol in self.servers:
+			server_thread = threading.Thread(target=self.servers[protocol].run)
+			server_thread.daemon = True
+			server_thread.start()
+			server_threads.append(server_thread)
 
 		while True:
 			line = sys.stdin.readline()
@@ -145,7 +194,8 @@ class SocketSrv:
 				print('unknown command {}'.format(cmd[0]))
 				self.cmd_help([])
 
-		udp_server_thread.join()
+		for server_thread in server_threads:
+			server_thread.join()
 
 if __name__ == "__main__":
 	srv = SocketSrv({
