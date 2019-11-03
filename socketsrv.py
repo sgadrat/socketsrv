@@ -37,7 +37,10 @@ class UdpServer:
 			data, addr = self.sock.recvfrom(self._max_payload_size)
 			if addr not in self.clients:
 				self.clients.append(addr)
-			print(data)
+				client_num = self.clients.index(addr)
+				print('< new UDP session #{}: {}'.format(client_num, self.get_client_desc(client_num)))
+			client_num = self.clients.index(addr)
+			print('< received datagram from UDP session #{}: {}'.format(client_num, data))
 
 	def send(self, message, client_num):
 		if client_num < len(self.clients):
