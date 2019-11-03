@@ -14,6 +14,7 @@
 #  * Websockets #TODO
 #
 
+import argparse
 import readline # Keep it even if it seems unused, it improves input()
 import select
 import socket
@@ -210,9 +211,16 @@ class SocketSrv:
 			server_thread.join()
 
 if __name__ == "__main__":
+	parser = argparse.ArgumentParser(description='Dump messages from various protocols')
+	parser.add_argument('--udp-addr', default='0.0.0.0', help='Listening address for UDP (default "0.0.0.0")')
+	parser.add_argument('--udp-port', default=1234, type=int, help='Listening port for UDP (default 1234)')
+	parser.add_argument('--tcp-addr', default='0.0.0.0', help='Listening address for TCP (default "0.0.0.0")')
+	parser.add_argument('--tcp-port', default=1234, type=int, help='Listening port for TCP (default 1234)')
+	args = parser.parse_args()
+
 	srv = SocketSrv({
-		'udp': {'addr':'0.0.0.0', 'port':1234},
-		'tcp': {'addr':'0.0.0.0', 'port':1234}
+		'udp': {'addr':args.udp_addr, 'port':args.udp_port},
+		'tcp': {'addr':args.tcp_addr, 'port':args.tcp_port}
 	})
 
 	try:
