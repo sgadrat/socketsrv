@@ -61,7 +61,7 @@ SocketSrv is a more specialized tool and features some ease of use in the case o
 Note that I highly recommend going with netcat over this server as it is standard, battle-tested and simpler.
 
 WebSockets support
-==================
+------------------
 
 Support of WebSockets protocol depends on the availability of the ``websockets`` python module.
 
@@ -88,3 +88,25 @@ If the WebSocket related options (``--ws-addr`` and ``--ws-port``) are listed, t
 If you need to install ``websockets`` module, you can do so with::
 
 	pip install websockets
+
+Testing websockets
+~~~~~~~~~~~~~~~~~~
+
+While netcat was used as an example TCP client and can work as an UDP client, it does not support WebSockets. You can use a web browser for a quick check:
+
+ - Launch SocketSrv as usual
+ - In your favourite browser's javascript console type::
+
+	ws = new WebSocket('ws://127.0.0.1:1235/')
+	ws.send('hello mister server')
+
+You should see the connection message when entering the first line and the message log for the second.
+
+You will note that WebSocket's connections are described by three fields (like ``127.0.0.1:4567:/``, the last one is the path as it is a notable component of WebSocket connections.
+
+Limitations and gotchas
+~~~~~~~~~~~~~~~~~~~~~~~
+
+SocketSrv's ``send`` command has no way to specify the message type, while WebSocket differenciates text and binary messages. ``send`` will allways send text messages. A new command ``send_bin`` may be implemented for alloowing to send binary message (and actually be able to send non-printable characters in all protocols)... but it is not done yet.
+
+When receiving a WebSocket message, we can differenciate text message from binary ones. Text messages are printed as is while binary messages are reprensted as a python buffer (``b"..."``). It is not ideal, once again a better formating may be implemented in the future to fix it and improve other protocols.
