@@ -15,11 +15,22 @@
 #
 
 import argparse
-import readline # Keep it even if it seems unused, it improves input()
 import select
 import socket
 import sys
 import threading
+
+readline_available = False
+try:
+	import readline # Keep it even if it seems unused, it improves input()
+	readline_available = True
+except ModuleNotFoundError:
+	try:
+		from pyreadline import Readline
+		readline = Readline()
+		readline_available = True
+	except ModuleNotFoundError:
+		pass
 
 websockets_available = False
 try:
@@ -271,6 +282,9 @@ class SocketSrv:
 			server_thread.join()
 
 if __name__ == "__main__":
+	if not readline_available:
+		print('Notice: no readline implementation found. The prompt will be rough. Install readline or pyreadline to fix the problem.\n')
+
 	parser = argparse.ArgumentParser(description='Dump messages from various protocols')
 	parser.add_argument('--udp-addr', default='0.0.0.0', help='Listening address for UDP (default "0.0.0.0")')
 	parser.add_argument('--udp-port', default=1234, type=int, help='Listening port for UDP (default 1234)')
