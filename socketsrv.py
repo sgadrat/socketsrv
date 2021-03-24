@@ -65,7 +65,11 @@ class UdpServer:
 
 	def send(self, message, client_num):
 		if client_num < len(self.clients):
-			self.sock.sendto(message, self.clients[client_num])
+			payload = message
+			if isinstance(message, str):
+				payload = message.encode('utf-8')
+
+			self.sock.sendto(payload, self.clients[client_num])
 			print('> sent datagram to UDP session #{}: {}'.format(client_num, message))
 		else:
 			raise Exception('unknown client #{}'.format(client_num))
@@ -133,8 +137,13 @@ class TcpServer:
 			client_info = self.clients[client_num]
 			if client_info is None:
 				raise Exception('try to write on closed TCP connection #{}'.format(client_num))
+
+			payload = message
+			if isinstance(message, str):
+				payload = message.encode('utf-8')
+
 			client_socket = client_info[0]
-			client_socket.send(message)
+			client_socket.send(payload)
 			print('> sent payload to TCP connection #{}: {}'.format(client_num, message))
 		else:
 			raise Exception('try to write on unknown TCP connection #{}'.format(client_num))
@@ -184,7 +193,7 @@ class WsServer:
 			if client_info is None:
 				raise Exception('try to write on closed WebSocket connection #{}'.format(client_num))
 			client_socket = client_info[0]
-			asyncio.run(client_socket.send(message.decode('utf-8')))
+			asyncio.run(client_socket.send(message))
 			print('> sent message to WebSocket connection #{}: {}'.format(client_num, message))
 		else:
 			raise Exception('try to write on unknown WebSocket connection #{}'.format(client_num))
@@ -233,7 +242,24 @@ class SocketSrv:
 			print('\t<message> anything to send to the client (may contain spaces)')
 		elif args[0] in self.servers:
 			client_num = int(args[1])
-			message = (' '.join(args[2:]) + '\n').encode('utf-8')
+			message = ' '.join(args[2:]) + '\n'
+			try:
+				self.servers[args[0]].send(message, client_num)
+			except Exception as e:
+				print('X {}'.format(e))
+		else:
+			print('X unknown protocol {}'.format(args[0]))
+
+	def cmd_sendb(self, args):
+		if len(args) < 2 or args[0] == 'help':
+			print('sendb <protocol> <client-num> <message>')
+			print('\t<protocol> one of the handled protocols')
+			print('\t<client-num> index of the client in protocol\'s clients list')
+			print('\t<message> hexadecimal representation of data to send to the client (spaces are ignored)')
+		elif args[0] in self.servers:
+			client_num = int(args[1])
+			message_hex = ' '.join(args[2:])
+			message = bytes.fromhex(message_hex)
 			try:
 				self.servers[args[0]].send(message, client_num)
 			except Exception as e:

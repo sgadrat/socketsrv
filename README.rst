@@ -36,7 +36,10 @@ Commands list
 	Shows a list of all connected clients by protocol
 
 ``send``
-	Send a message to a connected client (see ``send help`` for more details)
+	Send a text message to a connected client (see ``send help`` for more details)
+
+``sendb``
+	Send a binary message to a connected client (see ``send help`` for more details)
 
 Protocols list
 --------------
