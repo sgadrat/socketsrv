@@ -19,6 +19,7 @@ import select
 import socket
 import sys
 import threading
+import time
 
 readline_available = False
 try:
@@ -209,6 +210,8 @@ class SocketSrv:
 	Multi-protocol server
 	"""
 	def __init__(self, config):
+		self.batch = config['global']['batch']
+
 		self.servers = {
 			'udp': UdpServer((config['udp']['addr'], config['udp']['port'])),
 			'tcp': TcpServer((config['tcp']['addr'], config['tcp']['port'])),
@@ -282,6 +285,7 @@ class SocketSrv:
 					print('\tNo client')
 
 	def run(self):
+		# Start protocol specific servers
 		server_threads = []
 		for protocol in self.servers:
 			server_thread = threading.Thread(target=self.servers[protocol].run)
@@ -289,6 +293,16 @@ class SocketSrv:
 			server_thread.start()
 			server_threads.append(server_thread)
 
+		# In batch mode, wait for a client to connect
+		if self.batch:
+			has_client = False
+			while not has_client:
+				time.sleep(1)
+				for protocol in self.servers:
+					if len(self.servers[protocol].clients):
+						has_client = True
+
+		# Process inputs
 		while True:
 			line = input()
 			if line == '':
@@ -312,6 +326,7 @@ if __name__ == "__main__":
 		print('Notice: no readline implementation found. The prompt will be rough. Install readline or pyreadline to fix the problem.\n')
 
 	parser = argparse.ArgumentParser(description='Dump messages from various protocols')
+	parser.add_argument('--batch', default=False, action='store_true', help='Wait for a client to connect, then execute commands from stdin')
 	parser.add_argument('--udp-addr', default='0.0.0.0', help='Listening address for UDP (default "0.0.0.0")')
 	parser.add_argument('--udp-port', default=1234, type=int, help='Listening port for UDP (default 1234)')
 	parser.add_argument('--tcp-addr', default='0.0.0.0', help='Listening address for TCP (default "0.0.0.0")')
@@ -322,6 +337,7 @@ if __name__ == "__main__":
 	args = parser.parse_args()
 
 	srv = SocketSrv({
+		'global': {'batch':args.batch},
 		'udp': {'addr':args.udp_addr, 'port':args.udp_port},
 		'tcp': {'addr':args.tcp_addr, 'port':args.tcp_port},
 		'ws': {'addr':args.ws_addr, 'port':args.ws_port} if websockets_available else None
